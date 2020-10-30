@@ -7,12 +7,17 @@ if "Image" in locals():
     imp.reload( Image )
 else:
     from . import Image
+    
+if "QuakeLight" in locals():
+    imp.reload( QuakeLight )
+else:
+    from . import QuakeLight
 
 import math
 import bgl
 import gpu
 from gpu_extras.batch import batch_for_shader
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
 vertex_shader = '''
     in int vertex_id;
@@ -171,9 +176,9 @@ def make_equirectangular_from_sky(base_path, sky_name):
                 biggest_h = image.size[1]
             if biggest_w < image.size[0]:
                 biggest_w = image.size[0]
-    
-    equi_w = biggest_w*4
-    equi_h = biggest_h*2
+
+    equi_w = min(8192, biggest_w*4)
+    equi_h = min(4096, biggest_h*2)
     
     offscreen = gpu.types.GPUOffScreen(equi_w, equi_h)
     with offscreen.bind():
@@ -224,5 +229,43 @@ def make_equirectangular_from_sky(base_path, sky_name):
         image = bpy.data.images.new(sky_name, width=equi_w, height=equi_h)
     image.scale(equi_w, equi_h)
     image.pixels = buffer
-    
+    image.pack()
     return image
+
+def add_sun(shader, function, sun_parms, i):
+    
+    color = [0.0, 0.0, 0.0]
+    intensity = 1.0
+    parms = sun_parms.split()
+    rotation = [0.0, 0.0]
+    name = shader + "_" + function + "." + str(i)
+     
+    if function == "sun":
+        if len(parms) < 6:
+            print("not enogh sun parameters")
+    elif function == "q3map_sun":
+        if len(parms) < 6:
+            print("not enogh q3map_sun parameters")
+    elif function == "q3map_sunext":
+        if len(parms) < 8:
+            print("not enogh q3map_sunext parameters")
+    elif function == "q3gl2_sun":
+        if len(parms) < 9:
+            print("not enogh q3gl2_sun parameters")
+        
+    color = Vector((float(parms[0]), float(parms[1]), float(parms[2])))
+    color.normalize()
+    intensity = float(parms[3]) / 10.0
+    rotation = [float(parms[4]), float(parms[5])]
+    
+    light_vec = [0.0, 0.0, 0.0]
+    rotation[0] = rotation[0] / 180.0 * math.pi
+    rotation[1] = rotation[1] / 180.0 * math.pi
+    light_vec[0] = -math.cos(rotation[0]) * math.cos(rotation[1])
+    light_vec[1] = -math.sin(rotation[0]) * math.cos(rotation[1])
+    light_vec[2] = -math.sin(rotation[1])
+    angle = math.radians(1.5)
+    
+    QuakeLight.add_light(name, "SUN", intensity, color, light_vec, angle)
+    
+    return True
